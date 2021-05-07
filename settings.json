@@ -1,0 +1,18 @@
+{
+    "gbasf2_install_directory": "/path/to/your/work/directory/gbasf2",
+    "gbasf2_input_dslist": "/path/to/your/work/directory/flist.txt",
+    "gbasf2_project_name_prefix": "FEI_21-12-2121",
+    "gbasf2_release": "light-2102-nemesis",
+    "gbasf2_print_status_updates": true,
+    "gbasf2_noscout": true,
+    "gbasf2_basf2opt": "-l ERROR",
+    "gbasf2_max_retries": 10,
+    "gbasf2_download_logs": false,
+    "remote_tmp_directory": "/belle/user/your-grid-username/fei_input_files/",
+    "remote_initial_se": "KIT-TMP-SE",
+    "local_cpus" : 12,
+    "working_dir" : "/path/to/your/local/storage/directory/workdir",
+    "log_dir" : "/path/to/your/local/storage/directory/logs",
+    "result_dir" : "/path/to/your/local/storage/directory/results",
+    "executable" : ["python3"]
+}
