@@ -23,7 +23,6 @@ def create_fei_path(filelist=[], cache=0, monitor=False, verbose=False):
     # Load input ROOT file
     ma.inputMdstList(environmentType='default',
                      filelist=filelist,
-                     # filelist=['/ceph/akhmet/test_fei_gbasf2_example_input/sub00/mdst_000001_prod00014140_task00000001.root'],
                      path=path)
 
     # datsets (example with BGx0):
@@ -124,6 +123,4 @@ def create_fei_path(filelist=[], cache=0, monitor=False, verbose=False):
 
 
 if __name__ == "__main__":
-    # b2.process(create_fei_path(monitor=True))
-    b2.process(create_fei_path(filelist=["/ceph/akhmet/test_fei_gbasf2_example_input/sub00/"
-                                         "mdst_000001_prod00014140_task00000001.root"], monitor=True), max_event=10)
+    b2.process(create_fei_path(filelist=["mdst_000001_prod00014140_task00000001.root"], monitor=True), max_event=10)
