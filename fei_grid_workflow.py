@@ -457,7 +457,7 @@ class ProduceStatisticsTask(luigi.WrapperTask):
         #     remote_initial_se=luigi.get_setting("remote_initial_se"),
         # )
 
-        # yield FEIAnalysisTask(
+        # yield FEIAnalysisSummaryTask(
         #     cache=0,
         #     monitor=True,
         #     mode="TrainingInput",
