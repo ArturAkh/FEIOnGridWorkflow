@@ -169,7 +169,7 @@ class FEIAnalysisTask(Basf2PathTask):
 
         # determine the remote TMP-SE destination of input tarball for gbasf2 command
         if self.stage > -1:
-            timestamp = open(f"{self.get_input_file_names('successfull_input_upload.txt')[0]}", "r").read().strip()
+            timestamp = open(f"{self.get_input_file_names('successful_input_upload.txt')[0]}", "r").read().strip()
             additional_file = os.path.join(luigi.get_setting("remote_tmp_directory").rstrip('/')+timestamp,
                                            "stage"+str(self.stage - 1), "sub00", "fei_analysis_inputs.tar.gz")
             luigi.set_setting("gbasf2_input_datafiles", [additional_file])
@@ -365,7 +365,7 @@ class PrepareInputsTask(luigi.Task):
     def output(self):
 
         yield self.add_to_output('fei_analysis_inputs.tar.gz')
-        yield self.add_to_output('successfull_input_upload.txt')
+        yield self.add_to_output('successful_input_upload.txt')
 
     def requires(self):
 
@@ -409,8 +409,8 @@ class PrepareInputsTask(luigi.Task):
         taroutname = self.get_output_file_name("fei_analysis_inputs.tar.gz")
         taroutdir = os.path.dirname(taroutname)
 
-        if os.path.isfile(self.get_output_file_name('successfull_input_upload.txt')):
-            os.remove(self.get_output_file_name('successfull_input_upload.txt'))
+        if os.path.isfile(self.get_output_file_name('successful_input_upload.txt')):
+            os.remove(self.get_output_file_name('successful_input_upload.txt'))
 
         tar = tarfile.open(taroutname, "w:gz")
         for output in outputs:
@@ -431,7 +431,7 @@ class PrepareInputsTask(luigi.Task):
                                       f"sub00 -d {ds_site} -s {self.remote_initial_se} --force")))
 
         if sum([proc.returncode for proc in completed_replicas + [completed_copy]]) == 0:
-            with open(f"{self.get_output_file_name('successfull_input_upload.txt')}", "w") as timestampfile:
+            with open(f"{self.get_output_file_name('successful_input_upload.txt')}", "w") as timestampfile:
                 timestampfile.write(timestamp)
 
 
