@@ -85,7 +85,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
         for index, dataset in enumerate(dslist):
 
             partial_dslistname, extension = os.path.splitext(self.gbasf2_input_dslist)
-            partial_dslistname += f"_part{index}" + extension
+            partial_dslistname += f"_Part{index}" + extension
 
             if not os.path.exists(partial_dslistname):
                 partial_dslist = open(partial_dslistname, 'w')
@@ -95,7 +95,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
             yield FEIAnalysisTask(
                 cache=self.cache,
                 monitor=self.monitor,
-                mode=f"{self.mode}Part{index}",
+                mode=f"{self.mode}_Part{index}",
                 stage=self.stage,
                 gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix") + f"_Part{index}",
                 gbasf2_input_dslist=partial_dslistname,
