@@ -159,7 +159,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
                     mode=f"{self.mode}_Part{index}",
                     stage=self.stage,
                     gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix") + f"_Part{index}",
-                    gbasf2_input_dslist=partial_dslistname,
+                    gbasf2_input_dslist=partial_dslistpath,
                 )
 
         elif processing_type[self.stage]["type"] == "event_based":
@@ -198,7 +198,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
                         mode=f"{self.mode}_Part{index}",
                         stage=self.stage,
                         gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix") + f"_Part{index}",
-                        gbasf2_input_dslist=partial_dslistname,
+                        gbasf2_input_dslist=partial_dslistpath,
                         process_events=processing_type[self.stage]["n_events"],
                         skip_events=dspart*processing_type[self.stage]["n_events"],
                     )
