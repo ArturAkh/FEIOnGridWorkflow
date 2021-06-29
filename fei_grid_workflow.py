@@ -177,6 +177,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
                     dsname = '/'.join(dspathlist[:-1])
                     max_events = max(set(files_database[dsname].values()))
                 else:  # assume here, that the case with the dataset name is given without sub*
+                    dsname = ds
                     max_events = max(set(files_database[dsname].values()))
 
                 parts_per_ds = math.ceil(max_events / float(processing_type[self.stage]["n_events"]))
