@@ -133,16 +133,23 @@ class FEIAnalysisSummaryTask(luigi.Task):
 
         print(f"Information on input files stored in {files_database_name}.")
 
+        flists_foldername = 'partial_filelists'
+        flist_dir = os.path.dirname(self.gbasf2_input_dslist)
+        flist_path = os.path.join(flist_dir, flists_foldername)
+        if not os.path.isdirectory(flist_path):
+            os.makedirs(flist_path)
+
         if processing_type[self.stage]["type"] == "file_based":
 
             for index, dataset in enumerate(dslist):
 
                 partial_dslistname, extension = os.path.splitext(self.gbasf2_input_dslist)
                 partial_dslistname += f"_{self.stage}_Part{index}" + extension
+                partial_dslistpath = os.path.join(flist_path, os.path.basename(partial_dslistname))
 
                 # Make sure, that a proper partial file list is created for that particular stage
-                if not os.path.isfile(partial_dslistname):
-                    partial_dslist = open(partial_dslistname, 'w')
+                if not os.path.isfile(partial_dslistpath):
+                    partial_dslist = open(partial_dslistpath, 'w')
                     partial_dslist.write(dataset)
                     partial_dslist.close()
 
@@ -177,10 +184,11 @@ class FEIAnalysisSummaryTask(luigi.Task):
 
                     partial_dslistname, extension = os.path.splitext(self.gbasf2_input_dslist)
                     partial_dslistname += f"_{self.stage}_Part{index}" + extension
+                    partial_dslistpath = os.path.join(flist_path, os.path.basename(partial_dslistname))
 
                     # Make sure, that a proper partial file list is created for that particular stage
-                    if not os.path.isfile(partial_dslistname):
-                        partial_dslist = open(partial_dslistname, 'w')
+                    if not os.path.isfile(partial_dslistpath):
+                        partial_dslist = open(partial_dslistpath, 'w')
                         partial_dslist.write(ds)
                         partial_dslist.close()
 
