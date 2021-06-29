@@ -41,7 +41,7 @@ grid_cpu_time = {
     6: 4 * 60,  # adapted to event-based processing. Usual time per file: more than 48 hours
 }
 
-processing_type  = {
+processing_type = {
     -1: {"type": "file_based"},
     0: {"type": "file_based"},
     1: {"type": "file_based"},
@@ -95,7 +95,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
         dslistfile.close()
 
         # Creating datbase of input files as json file (lfn, nEvents)
-        files_database_name = os.path.join(os.path.dirname(self.gbasf2_input_dslist),'files_database.json')
+        files_database_name = os.path.join(os.path.dirname(self.gbasf2_input_dslist), 'files_database.json')
         print("Obtaining information on input files...")
         files_database = {}
         if not os.path.isfile(files_database_name):
@@ -109,10 +109,10 @@ class FEIAnalysisSummaryTask(luigi.Task):
                     files_pattern = ds
                 elif dspathlist[-1].startswith('sub'):  # Catch case, where dataset with structure /*/.../*/sub* is given
                     dsname = '/'.join(dspathlist[:-1])
-                    files_pattern ='/'.join([dsname, 'sub*/*.root'])
+                    files_pattern = '/'.join([dsname, 'sub*/*.root'])
                 else:  # assume here, that the case with the dataset name is given without sub*
                     dsname = ds
-                    files_pattern ='/'.join([dsname, 'sub*/*.root'])
+                    files_pattern = '/'.join([dsname, 'sub*/*.root'])
 
                 proc = run_with_gbasf2(shlex.split(f"gb2_ds_query_file {files_pattern} -m nEvents,lfn"), capture_output=True)
                 for info in proc.stdout.strip().splitlines():
