@@ -9,6 +9,7 @@ import json
 import datetime
 import subprocess
 import tarfile
+import math
 
 import b2luigi as luigi
 from b2luigi.basf2_helper.tasks import Basf2PathTask
@@ -34,10 +35,21 @@ grid_cpu_time = {
     0: 20,
     1: 30,
     2: 40,
-    3: 8 * 60,
-    4: 16 * 60,
-    5: 24 * 60,
-    6: 36 * 60,
+    3: 4 * 60,  # adapted to event-based processing. Usual time per file: 8 hours
+    4: 4 * 60,  # adapted to event-based processing. Usual time per file: 16 hours
+    5: 4 * 60,  # adapted to event-based processing. Usual time per file: more than 36 hours
+    6: 4 * 60,  # adapted to event-based processing. Usual time per file: more than 48 hours
+}
+
+processing_type  = {
+    -1: {"type": "file_based"},
+    0: {"type": "file_based"},
+    1: {"type": "file_based"},
+    2: {"type": "file_based"},
+    3: {"type": "event_based", "n_events": 100000},  # usually 1/2 of a file
+    4: {"type": "event_based", "n_events": 50000},  # usually 1/4 of a file
+    5: {"type": "event_based", "n_events": 20000},  # usually 1/10 of a file
+    6: {"type": "event_based", "n_events": 10000},  # usually 1/20 of a file
 }
 
 fei_analysis_outputs = {}
@@ -82,24 +94,112 @@ class FEIAnalysisSummaryTask(luigi.Task):
         dslist = [dsname.strip() for dsname in dslistfile.readlines()]
         dslistfile.close()
 
-        for index, dataset in enumerate(dslist):
+        # Creating datbase of input files as json file (lfn, nEvents)
+        files_database_name = os.path.join(os.path.dirname(self.gbasf2_input_dslist),'files_database.json')
+        print("Obtaining information on input files...")
+        files_database = {}
+        if not os.path.isfile(files_database_name):
 
-            partial_dslistname, extension = os.path.splitext(self.gbasf2_input_dslist)
-            partial_dslistname += f"_Part{index}" + extension
+            for ds in dslist:
+                files_pattern = ""
+                dsname = ""
+                dspathlist = ds.split('/')
+                if dspathlist[-1].endswith('.root'):  # Catch case, where file with structure /*/.../*/sub*/*.root is given
+                    dsname = '/'.join(dspathlist[:-2])
+                    files_pattern = ds
+                elif dspathlist[-1].startswith('sub'):  # Catch case, where dataset with structure /*/.../*/sub* is given
+                    dsname = '/'.join(dspathlist[:-1])
+                    files_pattern ='/'.join([dsname, 'sub*/*.root'])
+                else:  # assume here, that the case with the dataset name is given without sub*
+                    dsname = ds
+                    files_pattern ='/'.join([dsname, 'sub*/*.root'])
 
-            if not os.path.exists(partial_dslistname):
+                proc = run_with_gbasf2(shlex.split(f"gb2_ds_query_file {files_pattern} -m nEvents,lfn"), capture_output=True)
+                for info in proc.stdout.strip().splitlines():
+                    infolist = info.strip().split('|')[1:]
+
+                    # Store info as dict for file with values for {lfn: nEvents}
+                    nEvents = int(infolist[-2].split(':')[-1].strip())
+                    lfn = infolist[-1].split(':')[-1].strip()
+                    files_database.setdefault(dsname, {})[lfn] = nEvents
+
+            with open(files_database_name, 'w') as filesdb:
+                json.dump(files_database, filesdb, sort_keys=True, indent=2)
+
+        else:
+
+            with open(files_database_name, 'r') as filesdb:
+                files_database = json.load(filesdb)
+
+        print(f"Information on input files stored in {files_database_name}.")
+
+        if processing_type[self.stage]["type"] == "file_based":
+
+            for index, dataset in enumerate(dslist):
+
+                partial_dslistname, extension = os.path.splitext(self.gbasf2_input_dslist)
+                partial_dslistname += f"_Part{index}" + extension
+
+                # Make sure, that a proper partial file list is created for that particular stage
+                if os.path.isfile(partial_dslistname):
+                    os.remove(partial_dslistname)
+
                 partial_dslist = open(partial_dslistname, 'w')
                 partial_dslist.write(dataset)
                 partial_dslist.close()
 
-            yield FEIAnalysisTask(
-                cache=self.cache,
-                monitor=self.monitor,
-                mode=f"{self.mode}_Part{index}",
-                stage=self.stage,
-                gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix") + f"_Part{index}",
-                gbasf2_input_dslist=partial_dslistname,
-            )
+                yield FEIAnalysisTask(
+                    cache=self.cache,
+                    monitor=self.monitor,
+                    mode=f"{self.mode}_Part{index}",
+                    stage=self.stage,
+                    gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix") + f"_Part{index}",
+                    gbasf2_input_dslist=partial_dslistname,
+                )
+
+        elif processing_type[self.stage]["type"] == "event_based":
+
+            index = 0
+            for ds in dslist:
+
+                max_events = 0
+                dsname = ""
+                dspathlist = ds.split('/')
+                if dspathlist[-1].endswith('.root'):  # Catch case, where file with structure /*/.../*/sub*/*.root is given
+                    dsname = '/'.join(dspathlist[:-2])
+                    max_events = max(set([nEvents for lfn, nEvents in files_database[dsname].items() if lfn == ds]))
+                elif dspathlist[-1].startswith('sub'):  # Catch case, where dataset with structure /*/.../*/sub* is given
+                    dsname = '/'.join(dspathlist[:-1])
+                    max_events = max(set(files_database[dsname].values()))
+                else:  # assume here, that the case with the dataset name is given without sub*
+                    max_events = max(set(files_database[dsname].values()))
+
+                parts_per_ds = math.ceil(max_events / float(processing_type[self.stage]["n_events"]))
+                for dspart in range(parts_per_ds):
+
+                    partial_dslistname, extension = os.path.splitext(self.gbasf2_input_dslist)
+                    partial_dslistname += f"_Part{index}" + extension
+
+                    # Make sure, that a proper partial file list is created for that particular stage
+                    if os.path.isfile(partial_dslistname):
+                        os.remove(partial_dslistname)
+
+                    partial_dslist = open(partial_dslistname, 'w')
+                    partial_dslist.write(ds)
+                    partial_dslist.close()
+
+                    yield FEIAnalysisTask(
+                        cache=self.cache,
+                        monitor=self.monitor,
+                        mode=f"{self.mode}_Part{index}",
+                        stage=self.stage,
+                        gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix") + f"_Part{index}",
+                        gbasf2_input_dslist=partial_dslistname,
+                        process_events=processing_type[self.stage]["n_events"],
+                        skip_events=dspart*processing_type[self.stage]["n_events"],
+                    )
+
+                    index += 1
 
     def run(self):
 
@@ -120,12 +220,16 @@ class FEIAnalysisTask(Basf2PathTask):
     git_hash = luigi.Parameter(hashed=True, default=get_basf2_git_hash(), significant=False)
 
     gbasf2_project_name_prefix = luigi.Parameter(significant=False)
+    gbasf2_basf2opt = luigi.Parameter(significant=False, default=luigi.get_setting("gbasf2_basf2opt"))
     gbasf2_input_dslist = luigi.Parameter(hashed=True, significant=False)
 
     cache = luigi.IntParameter(significant=False)
     monitor = luigi.BoolParameter(significant=False)
     stage = luigi.IntParameter()
     mode = luigi.Parameter()
+
+    skip_events = luigi.IntParameter(significant=False, default=0)
+    process_events = luigi.IntParameter(significant=False, default=0)
 
     def output(self):
 
@@ -166,6 +270,9 @@ class FEIAnalysisTask(Basf2PathTask):
     def create_path(self):
 
         luigi.set_setting("gbasf2_cputime", grid_cpu_time[self.stage])
+
+        if processing_type[self.stage]["type"] == "event_based":
+            self.gbasf2_basf2opt += f" -n {self.process_events} --skip-events {self.skip_events}"
 
         # determine the remote TMP-SE destination of input tarball for gbasf2 command
         if self.stage > -1:
@@ -293,8 +400,10 @@ class FEITrainingTask(luigi.Task):
             else:
                 input_dslist = [input_ds]
 
+            # Extracting site names from gb2_ds_list query
+            print("Obtaining sites of input files...")
             proc_stdouts = []
-            for index, ds in enumerate(input_dslist):
+            for ds in input_dslist:
                 proc = run_with_gbasf2(shlex.split(f"gb2_ds_list {ds} -lg"), capture_output=True)
                 proc_stdouts.append(proc.stdout.splitlines())
 
@@ -305,6 +414,7 @@ class FEITrainingTask(luigi.Task):
             with open(f"{self.get_output_file_name('dataset_sites.txt')}", 'w') as output_sites:
                 output_sites.write('\n'.join(sites))
                 output_sites.close()
+
         else:
 
             # determine directory of outputs:
@@ -470,5 +580,5 @@ class ProduceStatisticsTask(luigi.WrapperTask):
 if __name__ == '__main__':
     main_task_instance = ProduceStatisticsTask()
     dslist = luigi.get_setting("gbasf2_input_dslist")
-    n_gbasf2_tasks = len(open(dslist, 'r').readlines())
+    n_gbasf2_tasks = len(open(dslist, 'r').readlines()) * 20
     luigi.process(main_task_instance, workers=n_gbasf2_tasks)
