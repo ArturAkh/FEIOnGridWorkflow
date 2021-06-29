@@ -136,7 +136,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
         flists_foldername = 'partial_filelists'
         flist_dir = os.path.dirname(self.gbasf2_input_dslist)
         flist_path = os.path.join(flist_dir, flists_foldername)
-        if not os.path.isdirectory(flist_path):
+        if not os.path.isdir(flist_path):
             os.makedirs(flist_path)
 
         if processing_type[self.stage]["type"] == "file_based":
@@ -553,10 +553,10 @@ class ProduceStatisticsTask(luigi.WrapperTask):
 
     def requires(self):
 
-        yield FEITrainingTask(
-            mode="Training",
-            stage=6,
-        )
+        # yield FEITrainingTask(
+        #     mode="Training",
+        #     stage=6,
+        # )
 
         # yield MergeOutputsTask(
         #     mode="Merging",
@@ -571,14 +571,14 @@ class ProduceStatisticsTask(luigi.WrapperTask):
         #     remote_initial_se=luigi.get_setting("remote_initial_se"),
         # )
 
-        # yield FEIAnalysisSummaryTask(
-        #     cache=0,
-        #     monitor=True,
-        #     mode="TrainingInput",
-        #     stage=6,
-        #     gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix"),
-        #     gbasf2_input_dslist=luigi.get_setting("gbasf2_input_dslist"),
-        # )
+        yield FEIAnalysisSummaryTask(
+            cache=0,
+            monitor=True,
+            mode="TrainingInput",
+            stage=-1,
+            gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix"),
+            gbasf2_input_dslist=luigi.get_setting("gbasf2_input_dslist"),
+        )
 
 
 if __name__ == '__main__':
