@@ -549,16 +549,16 @@ class ProduceStatisticsTask(luigi.WrapperTask):
 
     def requires(self):
 
-        # yield FEITrainingTask(
-        #     mode="Training",
-        #     stage=0,
-        # )
-
-        yield MergeOutputsTask(
-            mode="Merging",
+        yield FEITrainingTask(
+            mode="Training",
             stage=6,
-            ncpus=luigi.get_setting("local_cpus"),
         )
+
+        # yield MergeOutputsTask(
+        #     mode="Merging",
+        #     stage=6,
+        #     ncpus=luigi.get_setting("local_cpus"),
+        # )
 
         # yield PrepareInputsTask(
         #     mode="AnalysisInput",
