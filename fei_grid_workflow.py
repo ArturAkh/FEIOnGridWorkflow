@@ -138,7 +138,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
             for index, dataset in enumerate(dslist):
 
                 partial_dslistname, extension = os.path.splitext(self.gbasf2_input_dslist)
-                partial_dslistname += f"_Part{index}" + extension
+                partial_dslistname += f"_{self.stage}_Part{index}" + extension
 
                 # Make sure, that a proper partial file list is created for that particular stage
                 if os.path.isfile(partial_dslistname):
@@ -178,7 +178,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
                 for dspart in range(parts_per_ds):
 
                     partial_dslistname, extension = os.path.splitext(self.gbasf2_input_dslist)
-                    partial_dslistname += f"_Part{index}" + extension
+                    partial_dslistname += f"_{self.stage}_Part{index}" + extension
 
                     # Make sure, that a proper partial file list is created for that particular stage
                     if os.path.isfile(partial_dslistname):
