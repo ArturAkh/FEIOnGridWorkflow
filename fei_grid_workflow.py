@@ -141,12 +141,10 @@ class FEIAnalysisSummaryTask(luigi.Task):
                 partial_dslistname += f"_{self.stage}_Part{index}" + extension
 
                 # Make sure, that a proper partial file list is created for that particular stage
-                if os.path.isfile(partial_dslistname):
-                    os.remove(partial_dslistname)
-
-                partial_dslist = open(partial_dslistname, 'w')
-                partial_dslist.write(dataset)
-                partial_dslist.close()
+                if not os.path.isfile(partial_dslistname):
+                    partial_dslist = open(partial_dslistname, 'w')
+                    partial_dslist.write(dataset)
+                    partial_dslist.close()
 
                 yield FEIAnalysisTask(
                     cache=self.cache,
@@ -181,12 +179,10 @@ class FEIAnalysisSummaryTask(luigi.Task):
                     partial_dslistname += f"_{self.stage}_Part{index}" + extension
 
                     # Make sure, that a proper partial file list is created for that particular stage
-                    if os.path.isfile(partial_dslistname):
-                        os.remove(partial_dslistname)
-
-                    partial_dslist = open(partial_dslistname, 'w')
-                    partial_dslist.write(ds)
-                    partial_dslist.close()
+                    if not os.path.isfile(partial_dslistname):
+                        partial_dslist = open(partial_dslistname, 'w')
+                        partial_dslist.write(ds)
+                        partial_dslist.close()
 
                     yield FEIAnalysisTask(
                         cache=self.cache,
