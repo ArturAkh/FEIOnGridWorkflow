@@ -474,7 +474,7 @@ class FEITrainingTask(luigi.Task):
                 for png in glob.glob("*.png"):
                     shutil.move(png, os.path.join(os.path.dirname(self.get_output_file_name('summary.tex')), png))
 
-                # prepare and preform mva evaluation
+                # prepare and perform mva evaluation
                 mva_cmds = []
                 valid_trainings = []
                 invalid_trainings = []
