@@ -661,5 +661,5 @@ class ProduceStatisticsTask(luigi.WrapperTask):
 if __name__ == '__main__':
     main_task_instance = ProduceStatisticsTask()
     dslist = luigi.get_setting("gbasf2_input_dslist")
-    n_gbasf2_tasks = len(open(dslist, 'r').readlines()) * 20
+    n_gbasf2_tasks = len(open(dslist, 'r').readlines()) * 50
     luigi.process(main_task_instance, workers=n_gbasf2_tasks)
