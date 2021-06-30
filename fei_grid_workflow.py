@@ -422,17 +422,14 @@ class FEITrainingTask(luigi.Task):
 
         else:
 
-            # determine directory of outputs:
-            outputdir = os.path.dirname(self.get_output_file_name(self.first_xml_output))
-
             # create symlinks to files, which are needed for current FEI analysis stage
             for key in self.get_input_file_names():
                 if key == "mcParticlesCount.root" or key == "training_input.root" or "Monitor" in key or key.endswith(".xml"):
                     force_symlink(self.get_input_file_names(key)[0], key)
 
+            monitor = True if self.stage == 6 else False
             if self.stage < 6:
                 # load path to perform training
-                monitor = True if self.stage == 6 else False
                 for summary_file in glob.glob("Summary.pickle*"):
                     os.remove(summary_file)
                 if not os.path.exists('Summary.pickle'):
@@ -441,10 +438,14 @@ class FEITrainingTask(luigi.Task):
                 fei.do_trainings(particles, configuration)
             else:
                 cmds = []
+                for summary_file in glob.glob("Summary.pickle*"):
+                    os.remove(summary_file)
+                if not os.path.exists('Summary.pickle'):
+                    create_fei_path(filelist=[], cache=0, monitor=monitor)
                 printReporting = os.path.join(os.getenv("BELLE2_LOCAL_DIR"), "analysis/scripts/fei/printReporting.py")
                 latexReporting = os.path.join(os.getenv("BELLE2_LOCAL_DIR"), "analysis/scripts/fei/latexReporting.py")
                 cmds.append(f"basf2 {printReporting} > {self.get_output_file_name('summary.txt')}")
-                cmds.append(f"basf2 {latexReporting} > {self.get_output_file_name('summary.tex')}")
+                cmds.append(f"basf2 {latexReporting} {self.get_output_file_name('summary.tex')}")
                 retcodes = [subprocess.call(cmd, shell=True) for cmd in cmds]
 
                 # if non-zero error code, output files probably corrupt, so removing them
@@ -462,6 +463,10 @@ class FEITrainingTask(luigi.Task):
                 os.remove(summary_file)
 
             if self.stage < 6:
+
+                # determine directory of outputs:
+                outputdir = os.path.dirname(self.get_output_file_name(self.first_xml_output))
+
                 # move *.xml and *.log files to output directory
                 for fpath in glob.glob("*.xml"):
                     shutil.move(fpath, outputdir)
