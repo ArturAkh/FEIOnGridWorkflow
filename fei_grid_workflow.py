@@ -448,12 +448,17 @@ class FEITrainingTask(luigi.Task):
                 cmds.append(f"basf2 {latexReporting} {self.get_output_file_name('summary.tex')}")
                 retcodes = [subprocess.call(cmd, shell=True) for cmd in cmds]
 
+                for png in glob.glob("*.png"):
+                    shutil.move(png, os.path.join(os.path.dirname(self.get_output_file_name('summary.tex')), png))
+
                 # if non-zero error code, output files probably corrupt, so removing them
                 if sum(retcodes) != 0:
                     if os.path.exists(self.get_output_file_name('summary.txt')):
                         os.remove(self.get_output_file_name('summary.txt'))
                     if os.path.exists(self.get_output_file_name('summary.tex')):
                         os.remove(self.get_output_file_name('summary.tex'))
+                    for png in glob.glob(os.path.join(os.path.dirname(self.get_output_file_name('summary.tex')), "*.png")):
+                        os.remove(png)
 
             # remove symlinks and not needed Summary.pickle files
             for key in self.get_input_file_names():
