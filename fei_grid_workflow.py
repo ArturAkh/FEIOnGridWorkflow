@@ -361,9 +361,19 @@ class FEITrainingTask(luigi.Task):
                     if not self.first_xml_output:
                         self.first_xml_output = f"{channel.label}.xml"
                     yield self.add_to_output(f"{channel.label}.xml")
-        else:
+        elif self.stage == 6:
+            # outputs from report scripts
             yield self.add_to_output("summary.tex")
             yield self.add_to_output("summary.txt")
+
+            # outputs resulting from mva evaluation
+            yield self.add_to_output("training_input_merged.root")
+            particles = get_particles()
+            myparticles = fei.core.get_stages_from_particles(particles)
+            for stage in range(self.stage):
+                for p in myparticles[stage]:
+                    for channel in p.channels:
+                        yield self.add_to_output(f"{channel.label}.zip")
 
     def requires(self):
 
@@ -392,6 +402,17 @@ class FEITrainingTask(luigi.Task):
                 yield FEITrainingTask(
                     mode="Training",
                     stage=fei_stage,
+                )
+
+        # need merged training_input.root from stages 0 to 5 for mva evaluation
+        if self.stage == 6:
+
+            for fei_stage in range(self.stage):
+
+                yield MergeOutputsTask(
+                    mode="Merging",
+                    stage=fei_stage,
+                    ncpus=luigi.get_setting("local_cpus"),
                 )
 
     def run(self):
@@ -442,6 +463,8 @@ class FEITrainingTask(luigi.Task):
                     os.remove(summary_file)
                 if not os.path.exists('Summary.pickle'):
                     create_fei_path(filelist=[], cache=0, monitor=monitor)
+
+                # create report outputs
                 printReporting = os.path.join(os.getenv("BELLE2_LOCAL_DIR"), "analysis/scripts/fei/printReporting.py")
                 latexReporting = os.path.join(os.getenv("BELLE2_LOCAL_DIR"), "analysis/scripts/fei/latexReporting.py")
                 cmds.append(f"basf2 {printReporting} > {self.get_output_file_name('summary.txt')}")
@@ -451,6 +474,36 @@ class FEITrainingTask(luigi.Task):
                 for png in glob.glob("*.png"):
                     shutil.move(png, os.path.join(os.path.dirname(self.get_output_file_name('summary.tex')), png))
 
+                # prepare and preform mva evaluation
+                mva_cmds = []
+                valid_trainings = []
+                invalid_trainings = []
+                particles = get_particles()
+                myparticles = fei.core.get_stages_from_particles(particles)
+                for stage in range(self.stage):
+                    for p in myparticles[stage]:
+                        for channel in p.channels:
+                            if not fei.core.Teacher.check_if_weightfile_is_fake(f"{channel.label}.xml"):
+                                valid_trainings.append(channel.label)
+                            else:
+                                invalid_trainings.append(channel.label)
+
+                if valid_trainings:
+                    individual_training_inputs = " ".join(self.get_input_file_names("training_input.root"))
+                    mva_cmds.append(f"analysis-fei-mergefiles {self.get_output_file_name('training_input_merged.root')} " +
+                                    individual_training_inputs)
+                    for label in valid_trainings:
+                        mva_cmds.append(f"basf2_mva_evaluate.py -i '{label}.xml' "
+                                        f"--data {self.get_output_file_name('training_input_merged.root')} "
+                                        f"--treename '{label} variables' "
+                                        f"-o '{self.get_output_file_name(label+'.zip')}'")
+                    retcodes += [subprocess.call(cmd, shell=True) for cmd in mva_cmds]
+
+                else:
+                    f = open(self.get_output_file_name('training_input_merged.root'), 'w')
+                    f.truncate(0)
+                    f.close()
+
                 # if non-zero error code, output files probably corrupt, so removing them
                 if sum(retcodes) != 0:
                     if os.path.exists(self.get_output_file_name('summary.txt')):
@@ -459,6 +512,19 @@ class FEITrainingTask(luigi.Task):
                         os.remove(self.get_output_file_name('summary.tex'))
                     for png in glob.glob(os.path.join(os.path.dirname(self.get_output_file_name('summary.tex')), "*.png")):
                         os.remove(png)
+
+                    if os.path.exists(self.get_output_file_name('training_input_merged.root')):
+                        os.remove(self.get_output_file_name('training_input_merged.root'))
+
+                    for label in valid_trainings:
+                        if os.path.exists(self.get_output_file_name(label+'.zip')):
+                            os.remove(self.get_output_file_name(label+'.zip'))
+
+                else:
+                    for label in invalid_trainings:
+                        f = open(self.get_output_file_name(label+'.zip'), 'w')
+                        f.truncate(0)
+                        f.close()
 
             # remove symlinks and not needed Summary.pickle files
             for key in self.get_input_file_names():
