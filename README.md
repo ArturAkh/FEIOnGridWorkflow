@@ -1,4 +1,4 @@
-# FEI training on grid
+# FEI training on the grid
 
 A detailed description of the adaption of FEI to run on grid resources,
 and the discription of the provided automated example with [b2luigi](https://github.com/nils-braun/b2luigi)
