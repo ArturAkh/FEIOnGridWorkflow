@@ -126,7 +126,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
                                                          for inputf in files])
 
                 for info in procs:
-                    print(info.stdout)
+                    print(info.stdout.strip())
                     infolist = info.stdout.strip().split('|')[1:]
 
                     # Store info as dict for file with values for {lfn: nEvents}
