@@ -20,6 +20,10 @@ from B_generic_train import create_fei_path, get_particles
 import fei
 
 
+def run_with_gbasf2_pickable(cmd):
+    return run_with_gbasf2(cmd, capture_output=True)
+
+
 def force_symlink(source, target):
     try:
         os.symlink(source, target)
@@ -116,13 +120,14 @@ class FEIAnalysisSummaryTask(luigi.Task):
                     files_pattern = '/'.join([dsname, 'sub*/*.root'])
 
                 files = [f.strip() for f in run_with_gbasf2(shlex.split(f"gb2_ds_list {files_pattern}"), capture_output=True).
-                         strip().splitlines()]
+                         stdout.strip().splitlines()]
                 p = Pool(self.ncpus)
-                procs = p.map(lambda inputf: run_with_gbasf2(shlex.split(f"gb2_ds_query_file {inputf} -m nEvents,lfn"),
-                                                             capture_output=True), files)
+                procs = p.map(run_with_gbasf2_pickable, [shlex.split(f"gb2_ds_query_file {inputf} -m nEvents,lfn")
+                                                         for inputf in files])
+
                 for info in procs:
-                    print(info)
-                    infolist = info.strip().split('|')[1:]
+                    print(info.stdout)
+                    infolist = info.stdout.strip().split('|')[1:]
 
                     # Store info as dict for file with values for {lfn: nEvents}
                     nEvents = int(infolist[-2].split(':')[-1].strip())
@@ -637,10 +642,10 @@ class ProduceStatisticsTask(luigi.WrapperTask):
 
     def requires(self):
 
-        # yield FEITrainingTask(
-        #     mode="Training",
-        #     stage=6,
-        # )
+        yield FEITrainingTask(
+            mode="Training",
+            stage=6,
+        )
 
         # yield MergeOutputsTask(
         #     mode="Merging",
@@ -650,20 +655,20 @@ class ProduceStatisticsTask(luigi.WrapperTask):
 
         # yield PrepareInputsTask(
         #     mode="AnalysisInput",
-        #     stage=0,
+        #     stage=6,
         #     remote_tmp_directory=luigi.get_setting("remote_tmp_directory"),
         #     remote_initial_se=luigi.get_setting("remote_initial_se"),
         # )
 
-        yield FEIAnalysisSummaryTask(
-            cache=-1,
-            monitor=False,
-            mode="TrainingInput",
-            stage=-1,
-            gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix"),
-            gbasf2_input_dslist=luigi.get_setting("gbasf2_input_dslist"),
-            ncpus=luigi.get_setting("local_cpus"),
-        )
+        # yield FEIAnalysisSummaryTask(
+        #     cache=0,
+        #     monitor=True,
+        #     mode="TrainingInput",
+        #     stage=6,
+        #     gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix"),
+        #     gbasf2_input_dslist=luigi.get_setting("gbasf2_input_dslist"),
+        #     ncpus=luigi.get_setting("local_cpus"),
+        # )
 
 
 if __name__ == '__main__':
