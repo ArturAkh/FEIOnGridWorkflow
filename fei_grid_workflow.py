@@ -114,8 +114,13 @@ class FEIAnalysisSummaryTask(luigi.Task):
                     dsname = ds
                     files_pattern = '/'.join([dsname, 'sub*/*.root'])
 
-                proc = run_with_gbasf2(shlex.split(f"gb2_ds_query_file {files_pattern} -m nEvents,lfn"), capture_output=True)
-                for info in proc.stdout.strip().splitlines():
+                files = [f.strip() for f in run_with_gbasf2(shlex.split(f"gb2_ds_list {files_pattern}"), capture_output=True).
+                         strip().splitlines()]
+                p = Pool(self.ncpus)
+                procs = p.map(lambda inputf: run_with_gbasf2(shlex.split(f"gb2_ds_query_file {inputf} -m nEvents,lfn"),
+                                                             capture_output=True), files)
+                for info in procs:
+                    print(info)
                     infolist = info.strip().split('|')[1:]
 
                     # Store info as dict for file with values for {lfn: nEvents}
@@ -325,6 +330,7 @@ class MergeOutputsTask(luigi.Task):
             stage=self.stage,
             gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix"),
             gbasf2_input_dslist=luigi.get_setting("gbasf2_input_dslist"),
+            ncpus=luigi.get_setting("local_cpus"),
         )
 
     def run(self):
@@ -655,6 +661,7 @@ class ProduceStatisticsTask(luigi.WrapperTask):
         #     stage=6,
         #     gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix"),
         #     gbasf2_input_dslist=luigi.get_setting("gbasf2_input_dslist"),
+        #     ncpus=luigi.get_setting("local_cpus"),
         # )
 
 
