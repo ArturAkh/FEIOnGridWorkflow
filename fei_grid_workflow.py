@@ -74,6 +74,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
 
     gbasf2_project_name_prefix = luigi.Parameter(significant=False)
     gbasf2_input_dslist = luigi.Parameter(hashed=True, significant=False)
+    ncpus = luigi.IntParameter(significant=False)  # to be used with setting 'local_cpus' in settings.json
 
     cache = luigi.IntParameter(significant=False)
     monitor = luigi.BoolParameter(significant=False)
@@ -636,10 +637,10 @@ class ProduceStatisticsTask(luigi.WrapperTask):
 
     def requires(self):
 
-        yield FEITrainingTask(
-            mode="Training",
-            stage=6,
-        )
+        # yield FEITrainingTask(
+        #     mode="Training",
+        #     stage=6,
+        # )
 
         # yield MergeOutputsTask(
         #     mode="Merging",
@@ -654,15 +655,15 @@ class ProduceStatisticsTask(luigi.WrapperTask):
         #     remote_initial_se=luigi.get_setting("remote_initial_se"),
         # )
 
-        # yield FEIAnalysisSummaryTask(
-        #     cache=0,
-        #     monitor=True,
-        #     mode="TrainingInput",
-        #     stage=6,
-        #     gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix"),
-        #     gbasf2_input_dslist=luigi.get_setting("gbasf2_input_dslist"),
-        #     ncpus=luigi.get_setting("local_cpus"),
-        # )
+        yield FEIAnalysisSummaryTask(
+            cache=-1,
+            monitor=False,
+            mode="TrainingInput",
+            stage=-1,
+            gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix"),
+            gbasf2_input_dslist=luigi.get_setting("gbasf2_input_dslist"),
+            ncpus=luigi.get_setting("local_cpus"),
+        )
 
 
 if __name__ == '__main__':
