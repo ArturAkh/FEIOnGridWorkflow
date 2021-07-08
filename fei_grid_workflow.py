@@ -39,10 +39,10 @@ grid_cpu_time = {
     0: 20,
     1: 30,
     2: 40,
-    3: 4 * 60,  # adapted to event-based processing. Usual time per file: 8 hours
-    4: 4 * 60,  # adapted to event-based processing. Usual time per file: 16 hours
-    5: 4 * 60,  # adapted to event-based processing. Usual time per file: more than 36 hours
-    6: 4 * 60,  # adapted to event-based processing. Usual time per file: more than 48 hours
+    3: 10 * 60,  # adapted to event-based processing. Usual time per file: 16 hours
+    4: 10 * 60,  # adapted to event-based processing. Usual time per file: 24 hours
+    5: 10 * 60,  # adapted to event-based processing. Usual time per file: more than 36 hours
+    6: 10 * 60,  # adapted to event-based processing. Usual time per file: more than 48 hours
 }
 
 processing_type = {
@@ -50,7 +50,7 @@ processing_type = {
     0: {"type": "file_based"},
     1: {"type": "file_based"},
     2: {"type": "file_based"},
-    3: {"type": "event_based", "n_events": 100000},  # usually 1/2 of a file
+    3: {"type": "event_based", "n_events": 50000},  # usually 1/4 of a file
     4: {"type": "event_based", "n_events": 50000},  # usually 1/4 of a file
     5: {"type": "event_based", "n_events": 20000},  # usually 1/10 of a file
     6: {"type": "event_based", "n_events": 10000},  # usually 1/20 of a file
