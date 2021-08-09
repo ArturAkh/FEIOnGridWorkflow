@@ -10,6 +10,9 @@ import datetime
 import subprocess
 import tarfile
 import math
+import ROOT
+import copy
+import numpy as np
 
 import b2luigi as luigi
 from b2luigi.basf2_helper.tasks import Basf2PathTask
@@ -314,6 +317,69 @@ class FEIAnalysisTask(Basf2PathTask):
         return path
 
 
+def merge_cmd(info):
+    if "Reconstruction" in info['output']:
+        bin_contents = {}
+        outhists = {}
+        dirs = []
+        processed = 0
+        print(f"Merging {info['output']} using numpy arrays")
+        for index, f in enumerate(info['inputs']):
+            inp = ROOT.TFile.Open(f, "read")
+            if index == 0:
+                dirs = [k.GetName() for k in inp.GetListOfKeys()]
+            for dn in dirs:
+                if index == 0:
+                    d = inp.Get(dn)
+                    bin_contents[dn] = {}
+                    outhists[dn] = {}
+                    hists = [k.GetName() for k in d.GetListOfKeys()]
+                    for hn in hists:
+                        h = d.Get(hn)
+                        outhists[dn][hn] = copy.deepcopy(h.Clone())
+                        if type(h).__name__.startswith("TH1"):
+                            bin_contents[dn][hn] = np.array([h.GetBinContent(i+1) for i in range(h.GetNbinsX())])
+                        elif type(h).__name__.startswith("TH2"):
+                            bin_contents[dn][hn] = np.array([h.GetBinContent(i+1, j+1) for i in range(h.GetNbinsX())
+                                                             for j in range(h.GetNbinsY())])
+                else:
+                    d = inp.Get(dn)
+                    hists = [k.GetName() for k in d.GetListOfKeys()]
+                    for hn in hists:
+                        h = d.Get(hn)
+                        if type(h).__name__.startswith("TH1"):
+                            bin_contents[dn][hn] += np.array([h.GetBinContent(i+1) for i in range(h.GetNbinsX())])
+                        elif type(h).__name__.startswith("TH2"):
+                            bin_contents[dn][hn] += np.array([h.GetBinContent(i+1, j+1) for i in range(h.GetNbinsX())
+                                                              for j in range(h.GetNbinsY())])
+            inp.Close()
+
+            processed_currently = int(100.0*(index+1)/len(info['inputs']))
+            if processed_currently > processed:
+                print(f"{processed_currently}% of inputs processed for {info['output']}")
+                processed = processed_currently
+
+        outfile = ROOT.TFile.Open(info['output'], "recreate")
+        for dn in dirs:
+            outfile.mkdir(dn)
+            outfile.cd(dn)
+            for hn, hist in outhists[dn].items():
+                if type(hist).__name__.startswith("TH1"):
+                    for i, val in enumerate(bin_contents[dn][hn]):
+                        hist.SetBinContent(i+1, val)
+                    hist.Write()
+                elif type(hist).__name__.startswith("TH2"):
+                    for b, val in enumerate(bin_contents[dn][hn]):
+                        i = b // hist.GetNbinsY()
+                        j = b % hist.GetNbinsY()
+                        hist.SetBinContent(i+1, j+1, val)
+                    hist.Write()
+        outfile.Close()
+    else:
+        cmd = f"analysis-fei-mergefiles {info['output']} {' '.join(info['inputs'])}"
+        subprocess.check_call(shlex.split(cmd))
+
+
 class MergeOutputsTask(luigi.Task):
 
     ncpus = luigi.IntParameter(significant=False)  # to be used with setting 'local_cpus' in settings.json
@@ -341,17 +407,16 @@ class MergeOutputsTask(luigi.Task):
 
     def run(self):
 
-        cmds = []
+        infos = []
         outputs = {}
         with open(self.get_input_file_names("list_of_output_directories.json")[0], 'r') as jsonfile:
             outputs = json.load(jsonfile)
 
         for inname in fei_analysis_outputs[self.stage]:
-            cmds.append(f"analysis-fei-mergefiles {self.get_output_file_name(inname)} " +
-                        " ".join(outputs[inname]))
+            infos.append({"output": self.get_output_file_name(inname), "inputs": outputs[inname]})
 
         p = Pool(self.ncpus)
-        p.map(subprocess.check_call, [shlex.split(cmd) for cmd in cmds])
+        p.map(merge_cmd, infos)
 
 
 class FEITrainingTask(luigi.Task):
