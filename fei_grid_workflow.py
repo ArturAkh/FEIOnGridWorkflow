@@ -12,6 +12,7 @@ import tarfile
 import math
 import ROOT
 import copy
+import time
 import numpy as np
 
 import b2luigi as luigi
@@ -21,6 +22,8 @@ from b2luigi.batch.processes.gbasf2 import run_with_gbasf2
 
 from B_generic_train import create_fei_path, get_particles
 import fei
+
+ROOT.gROOT.SetBatch()
 
 
 def run_with_gbasf2_pickable(cmd):
@@ -580,7 +583,7 @@ class FEITrainingTask(luigi.Task):
                     retcodes += [subprocess.call(cmd, shell=True) for cmd in mva_cmds]
 
                 # if non-zero error code, output files probably corrupt, so removing them
-                if sum(retcodes) != 0:
+                if np.sum(retcodes) != 0:
                     if os.path.exists(self.get_output_file_name('summary.txt')):
                         os.remove(self.get_output_file_name('summary.txt'))
                     if os.path.exists(self.get_output_file_name('summary.tex')):
@@ -688,12 +691,57 @@ class PrepareInputsTask(luigi.Task):
 
         # replicate tarball to other storage element sites (defined by used input datasets)
         dataset_sites = [site.strip() for site in open(self.get_input_file_names('dataset_sites.txt')[0], 'r').readlines()]
-        completed_replicas = []
-        for ds_site in dataset_sites:
-            completed_replicas.append(run_with_gbasf2(shlex.split(f"gb2_ds_rep {foldername}/"
-                                      f"sub00 -d {ds_site} -s {self.remote_initial_se} --force")))
+        initiated_replicas = []
 
-        if sum([proc.returncode for proc in completed_replicas + [completed_copy]]) == 0:
+        if completed_copy.returncode == 0:
+            for ds_site in dataset_sites:
+                initiated_replicas.append(run_with_gbasf2(shlex.split(f"gb2_ds_rep {foldername}/"
+                                          f"sub00 -d {ds_site} -s {self.remote_initial_se} --force")))
+
+        # check several times for status of replication (relevant since gbasf2 release v5r1p2)
+        completed_replicas = []
+        if np.sum([proc.returncode for proc in initiated_replicas + [completed_copy]]) == 0:
+            status_check_attempt = 0
+            replicated = False
+            print("Checking replication status until everything is OK")
+            while not replicated:
+                status = run_with_gbasf2(shlex.split(f"gb2_ds_rep_status {foldername}/sub00"), capture_output=True)
+                print(f"Attempt: {status_check_attempt}")
+                print(status.stdout)
+                status_content = [contentline.strip() for contentline in status.stdout.splitlines()]
+                header = status_content[0]
+                columns = [c.strip() for c in header.split('|')]
+                replicating_index = None
+                stuck_index = None
+                for index, col in enumerate(columns):
+                    if col == "Replicating":
+                        replicating_index = index
+                    elif col == "Stuck":
+                        stuck_index = index
+
+                site_content = [contentline for contentline in status_content if foldername in contentline]
+                stuck = np.sum([int(contentline.split('|')[stuck_index].strip()) for contentline in site_content])
+                replicating = np.sum([int(contentline.split('|')[replicating_index].strip()) for contentline in site_content])
+                if not stuck and not replicating:
+                    replicated = True
+                    completed_replicas.append(status)
+                    break
+                elif stuck:
+                    print("Replication process stuck. Aborting")
+                    break
+                else:
+                    print("Replication process still ongoing. Waiting...")
+                    time.sleep(60)
+                    status_check_attempt += 1
+
+        # cover case, where all status calls were unsuccessful
+        if not replicated:
+            dummy = type('', (), {})()
+            dummy.returncode = 1
+            completed_replicas.append(dummy)
+
+        # check all steps to have finished successfully
+        if np.sum([proc.returncode for proc in initiated_replicas + completed_replicas + [completed_copy]]) == 0:
             with open(f"{self.get_output_file_name('successful_input_upload.txt')}", "w") as timestampfile:
                 timestampfile.write(timestamp)
 
