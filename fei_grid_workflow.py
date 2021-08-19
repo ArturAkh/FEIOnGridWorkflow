@@ -185,6 +185,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
             for ds in dslist:
 
                 max_events = 0
+                min_events = 0
                 dsname = ""
                 dspathlist = ds.split('/')
                 if dspathlist[-1].endswith('.root'):  # Catch case, where file with structure /*/.../*/sub*/*.root is given
@@ -196,6 +197,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
                 else:  # assume here, that the case with the dataset name is given without sub*
                     dsname = ds
                     max_events = max(set(files_database[dsname].values()))
+                    min_events = min(set(files_database[dsname].values()))
 
                 parts_per_ds = math.ceil(max_events / float(processing_type[self.stage]["n_events"]))
                 for dspart in range(parts_per_ds):
@@ -204,10 +206,18 @@ class FEIAnalysisSummaryTask(luigi.Task):
                     partial_dslistname += f"_{self.stage}_Part{index}" + extension
                     partial_dslistpath = os.path.join(flist_path, os.path.basename(partial_dslistname))
 
+                    events_to_be_skipped = dspart*processing_type[self.stage]["n_events"]
+                    content = ds
+
+                    # Catch the case, where one of the files in the dataset has less events than to be skipped
+                    if events_to_be_skipped >= min_events:
+                        content = "\n".join([lfn for lfn, nEvents in files_database[dsname].items()
+                                             if nEvents > events_to_be_skipped])
+
                     # Make sure, that a proper partial file list is created for that particular stage
                     if not os.path.isfile(partial_dslistpath):
                         partial_dslist = open(partial_dslistpath, 'w')
-                        partial_dslist.write(ds)
+                        partial_dslist.write(content)
                         partial_dslist.close()
 
                     yield FEIAnalysisTask(
@@ -218,7 +228,7 @@ class FEIAnalysisSummaryTask(luigi.Task):
                         gbasf2_project_name_prefix=luigi.get_setting("gbasf2_project_name_prefix") + f"_Part{index}",
                         gbasf2_input_dslist=partial_dslistpath,
                         process_events=processing_type[self.stage]["n_events"],
-                        skip_events=dspart*processing_type[self.stage]["n_events"],
+                        skip_events=events_to_be_skipped,
                     )
 
                     index += 1
