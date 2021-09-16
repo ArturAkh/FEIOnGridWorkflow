@@ -331,7 +331,7 @@ class FEIAnalysisTask(Basf2PathTask):
 
 
 def merge_cmd(info):
-    if "Reconstruction" in info['output']:
+    if "Reconstruction" in info['output'] or "mcParticlesCount.root" in info['output']:
         bin_contents = {}
         outhists = {}
         dirs = []
@@ -339,32 +339,42 @@ def merge_cmd(info):
         print(f"Merging {info['output']} using numpy arrays")
         for index, f in enumerate(info['inputs']):
             inp = ROOT.TFile.Open(f, "read")
-            if index == 0:
-                dirs = [k.GetName() for k in inp.GetListOfKeys()]
-            for dn in dirs:
+            if "mcParticlesCount.root" in info['output']:  # containts directly TH1 histograms
+                hists = [k.GetName() for k in inp.GetListOfKeys()]
+                for hn in hists:
+                    h = inp.Get(hn)
+                    if index == 0:
+                        outhists[hn] = copy.deepcopy(h.Clone())
+                        bin_contents[hn] = np.array([h.GetBinContent(i+1) for i in range(h.GetNbinsX())])
+                    else:
+                        bin_contents[hn] += np.array([h.GetBinContent(i+1) for i in range(h.GetNbinsX())])
+            else:  # Monitor_*.root histogram files have a folder structure
                 if index == 0:
-                    d = inp.Get(dn)
-                    bin_contents[dn] = {}
-                    outhists[dn] = {}
-                    hists = [k.GetName() for k in d.GetListOfKeys()]
-                    for hn in hists:
-                        h = d.Get(hn)
-                        outhists[dn][hn] = copy.deepcopy(h.Clone())
-                        if type(h).__name__.startswith("TH1"):
-                            bin_contents[dn][hn] = np.array([h.GetBinContent(i+1) for i in range(h.GetNbinsX())])
-                        elif type(h).__name__.startswith("TH2"):
-                            bin_contents[dn][hn] = np.array([h.GetBinContent(i+1, j+1) for i in range(h.GetNbinsX())
-                                                             for j in range(h.GetNbinsY())])
-                else:
-                    d = inp.Get(dn)
-                    hists = [k.GetName() for k in d.GetListOfKeys()]
-                    for hn in hists:
-                        h = d.Get(hn)
-                        if type(h).__name__.startswith("TH1"):
-                            bin_contents[dn][hn] += np.array([h.GetBinContent(i+1) for i in range(h.GetNbinsX())])
-                        elif type(h).__name__.startswith("TH2"):
-                            bin_contents[dn][hn] += np.array([h.GetBinContent(i+1, j+1) for i in range(h.GetNbinsX())
-                                                              for j in range(h.GetNbinsY())])
+                    dirs = [k.GetName() for k in inp.GetListOfKeys()]
+                for dn in dirs:
+                    if index == 0:
+                        d = inp.Get(dn)
+                        bin_contents[dn] = {}
+                        outhists[dn] = {}
+                        hists = [k.GetName() for k in d.GetListOfKeys()]
+                        for hn in hists:
+                            h = d.Get(hn)
+                            outhists[dn][hn] = copy.deepcopy(h.Clone())
+                            if type(h).__name__.startswith("TH1"):
+                                bin_contents[dn][hn] = np.array([h.GetBinContent(i+1) for i in range(h.GetNbinsX())])
+                            elif type(h).__name__.startswith("TH2"):
+                                bin_contents[dn][hn] = np.array([h.GetBinContent(i+1, j+1) for i in range(h.GetNbinsX())
+                                                                 for j in range(h.GetNbinsY())])
+                    else:
+                        d = inp.Get(dn)
+                        hists = [k.GetName() for k in d.GetListOfKeys()]
+                        for hn in hists:
+                            h = d.Get(hn)
+                            if type(h).__name__.startswith("TH1"):
+                                bin_contents[dn][hn] += np.array([h.GetBinContent(i+1) for i in range(h.GetNbinsX())])
+                            elif type(h).__name__.startswith("TH2"):
+                                bin_contents[dn][hn] += np.array([h.GetBinContent(i+1, j+1) for i in range(h.GetNbinsX())
+                                                                  for j in range(h.GetNbinsY())])
             inp.Close()
 
             processed_currently = int(100.0*(index+1)/len(info['inputs']))
@@ -373,20 +383,26 @@ def merge_cmd(info):
                 processed = processed_currently
 
         outfile = ROOT.TFile.Open(info['output'], "recreate")
-        for dn in dirs:
-            outfile.mkdir(dn)
-            outfile.cd(dn)
-            for hn, hist in outhists[dn].items():
-                if type(hist).__name__.startswith("TH1"):
-                    for i, val in enumerate(bin_contents[dn][hn]):
-                        hist.SetBinContent(i+1, val)
-                    hist.Write()
-                elif type(hist).__name__.startswith("TH2"):
-                    for b, val in enumerate(bin_contents[dn][hn]):
-                        i = b // hist.GetNbinsY()
-                        j = b % hist.GetNbinsY()
-                        hist.SetBinContent(i+1, j+1, val)
-                    hist.Write()
+        if "mcParticlesCount.root" in info['output']:  # containts directly TH1 histograms
+            for hn, hist in outhists.items():
+                for i, val in enumerate(bin_contents[hn]):
+                    hist.SetBinContent(i+1, val)
+                hist.Write()
+        else:  # Monitor_*.root histogram files have a folder structure
+            for dn in dirs:
+                outfile.mkdir(dn)
+                outfile.cd(dn)
+                for hn, hist in outhists[dn].items():
+                    if type(hist).__name__.startswith("TH1"):
+                        for i, val in enumerate(bin_contents[dn][hn]):
+                            hist.SetBinContent(i+1, val)
+                        hist.Write()
+                    elif type(hist).__name__.startswith("TH2"):
+                        for b, val in enumerate(bin_contents[dn][hn]):
+                            i = b // hist.GetNbinsY()
+                            j = b % hist.GetNbinsY()
+                            hist.SetBinContent(i+1, j+1, val)
+                        hist.Write()
         outfile.Close()
     else:
         cmd = f"analysis-fei-mergefiles {info['output']} {' '.join(info['inputs'])}"
